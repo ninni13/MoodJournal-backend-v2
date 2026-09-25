@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+
+huggingface-hub==1.32.0
+transformers==5.17.0
+
+numpy==2.2.6
+scikit-learn==1.7.2
+joblib
+
+librosa==0.11.0
+soundfile==0.14.0
