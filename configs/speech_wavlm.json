@@ -1,0 +1,21 @@
+{
+  "model_name": "microsoft/wavlm-base-plus",
+  "num_labels": 7,
+  "sampling_rate": 16000,
+  "learning_rate": 1e-5,
+  "train_batch_size": 8,
+  "eval_batch_size": 16,
+  "num_train_epochs": 5,
+  "weight_decay": 0.01,
+  "seed": 42,
+  "early_stopping_patience": 2,
+  "labels": [
+    "Anger",
+    "Disgust",
+    "Fear",
+    "Happy",
+    "Neutral",
+    "Sad",
+    "Surprise"
+  ]
+}
