@@ -1,20 +1,25 @@
-# MoodJournal-v2 — M3ED 多模態情緒辨識
+# MoodJournal-backend-v2 — M3ED Multimodal Emotion Recognition
 
-MoodJournal-v2 是一個以 **M3ED 中文多模態情緒資料集**為基礎的七類情緒辨識專案。
+MoodJournal-backend-v2 is the backend, training, evaluation, and deployment repository for **MoodJournal**, a Chinese multimodal emotion diary application.
 
-本專案使用逐句文字與語音，比較：
-
-- MacBERT 文字模型
-- WavLM 語音模型
-- Weighted Late Fusion
-- Learned Fusion
-- Balanced Learned Fusion
-
-任務定義為：
+The project performs:
 
 > **7-class, single-label, utterance-level emotion classification**
 
-情緒標籤取自 M3ED 的 `final_main_emo`：
+using **text and speech** from the M3ED dataset.
+
+The system combines:
+
+- **MacBERT** for Chinese text emotion recognition
+- **WavLM** for speech emotion recognition
+- **Probability-level late fusion**
+- **Balanced Logistic Regression Fusion**
+- **FastAPI** for model inference
+- **Hugging Face Hub** for model storage
+- **Google Cloud Run** for production backend deployment
+- **React + Vite + Firebase** frontend deployed on Vercel
+
+The seven emotion classes are:
 
 ```text
 Anger
@@ -26,227 +31,169 @@ Sad
 Surprise
 ```
 
-目前未使用影像、對話上下文或說話者特徵。
-
-除離線模型實驗外，本專案亦實作完整的互動式情緒日記系統。使用者可透過 React 前端輸入文字或錄製語音，FastAPI 後端會載入 MacBERT、WavLM 與 Balanced Learned Fusion 模型，回傳七類情緒機率與最終預測結果。
+The current system does not use video, facial features, dialogue context, or speaker embeddings.
 
 ---
 
-## Repositories
+# System Overview
 
-### Frontend
-
-React + Vite 情緒日記介面：
-
-[https://github.com/ninni13/MoodJournal](https://github.com/ninni13/MoodJournal)
-
-主要功能包括：
-
-- Firebase 使用者登入
-- 情緒日記新增與管理
-- 文字情緒分析
-- 語音錄製
-- 文字 + 語音 multimodal emotion recognition
-- 七類情緒機率顯示
-- 七類情緒統計與視覺化
-
-### Backend / Training
-
-本 repository：
+The complete production architecture is:
 
 ```text
-MoodJournal-v2
+User Browser
+     │
+     ▼
+Vercel
+React + Vite Frontend
+     │
+     │ HTTPS
+     │ text + optional recorded audio
+     ▼
+Google Cloud Run
+FastAPI Backend
+     │
+     ├───────────────┐
+     │               │
+     ▼               ▼
+  MacBERT          WavLM
+   Text            Speech
+     │               │
+     │ 7 probs       │ 7 probs
+     └───────┬───────┘
+             │
+             ▼
+    14-dimensional feature
+             │
+             ▼
+Balanced Logistic Regression
+             │
+             ▼
+      7-class prediction
+             │
+             ▼
+Anger / Disgust / Fear /
+Happy / Neutral / Sad / Surprise
 ```
 
-負責：
+The fusion model is **not an end-to-end multimodal neural network**.
 
-- M3ED 資料處理
-- MacBERT 訓練
-- WavLM 訓練
-- Fusion 訓練與評估
-- 實驗結果整理
-- FastAPI inference service
+Instead:
 
-### Model Weights
+```text
+MacBERT → 7 probabilities
+WavLM   → 7 probabilities
+              ↓
+       concatenate
+              ↓
+        14 features
+              ↓
+ Logistic Regression
+```
 
-部署用模型儲存在 Hugging Face：
+---
 
-[https://huggingface.co/ninni13/moodjournal-multimodal-emotion](https://huggingface.co/ninni13/moodjournal-multimodal-emotion)
+# Related Repositories
 
-目前 repository 為 private。
+## Frontend
 
-包含：
+MoodJournal frontend:
+
+```text
+https://github.com/ninni13/MoodJournal
+```
+
+Production website:
+
+```text
+https://nis-moodjournal.vercel.app
+```
+
+Main frontend features include:
+
+- Firebase authentication
+- Emotion diary creation
+- Text input
+- Browser microphone recording
+- Text-only emotion recognition
+- Text + speech multimodal emotion recognition
+- Seven-class emotion probability display
+- Emotion chips
+- Emotion distribution visualization
+- Emotion calendar / diary insights
+- Diary editing and trash management
+
+---
+
+## Backend / Training
+
+This repository:
+
+```text
+https://github.com/ninni13/MoodJournal-backend-v2
+```
+
+This repository contains:
+
+- M3ED preprocessing scripts
+- Data validation
+- MacBERT training
+- WavLM training
+- Fusion experiments
+- Evaluation
+- Reproducibility utilities
+- FastAPI inference backend
+- Docker / Cloud Run deployment configuration
+
+---
+
+## Model Repository
+
+Deployment model weights are stored in a private Hugging Face model repository:
+
+```text
+ninni13/moodjournal-multimodal-emotion
+```
+
+Repository structure:
 
 ```text
 text_model/
+├── config.json
+├── model.safetensors
+├── tokenizer.json
+└── tokenizer_config.json
+
 speech_model/
+├── config.json
+├── model.safetensors
+└── preprocessor_config.json
+
 fusion_model.joblib
 labels.json
 text_macbert.json
 speech_wavlm.json
 ```
 
----
-
-# 系統架構
-
-```text
-                    MoodJournal
-                  React + Vite
-                       │
-                       │
-              text + optional audio
-                       │
-                       ▼
-                FastAPI Backend
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-          ▼                         ▼
-       MacBERT                    WavLM
-        Text                      Speech
-          │                         │
-          │ 7 probabilities         │ 7 probabilities
-          └────────────┬────────────┘
-                       │
-                       ▼
-             14-dimensional feature
-                       │
-                       ▼
-        Balanced Logistic Regression
-                       │
-                       ▼
-             7-class Emotion Output
-                       │
-      ┌────────────────────────────────┐
-      │ Anger                          │
-      │ Disgust                        │
-      │ Fear                           │
-      │ Happy                          │
-      │ Neutral                        │
-      │ Sad                            │
-      │ Surprise                       │
-      └────────────────────────────────┘
-```
-
-Fusion 並非 end-to-end multimodal network。
-
-MacBERT 與 WavLM 各自輸出七維 probability vector，再串接為：
-
-```text
-7 text probabilities
-+
-7 speech probabilities
-=
-14-dimensional fusion feature
-```
-
-最後交由 Logistic Regression 進行情緒分類。
+Model weights are intentionally not committed to GitHub.
 
 ---
 
-# 實驗成果
+# Task Definition
 
-以下為原實驗相同的 **4,198 筆 test utterances**。
+The project uses the M3ED `final_main_emo` field as the target label.
 
-數值為百分比，seed = 42。
-
-| Method | Accuracy | Macro-F1 | Macro-Precision | UAR |
-| --- | ---: | ---: | ---: | ---: |
-| MacBERT (text) | 45.07 | 30.43 | 33.50 | 29.13 |
-| WavLM (speech) | 50.12 | 19.01 | 21.00 | 21.66 |
-| Weighted Fusion (α_text = 0.75) | 47.40 | 30.91 | **35.86** | 29.33 |
-| Learned Fusion (LR) | **53.26** | 30.38 | 35.43 | 29.91 |
-| Balanced Learned Fusion (LR) | 41.40 | **34.14** | 35.19 | **36.28** |
-
-其中：
-
-- **Learned Fusion** 的 Accuracy 最高：53.26%
-- **Balanced Learned Fusion** 的 Macro-F1 最高：34.14%
-- **Balanced Learned Fusion** 的 UAR 最高：36.28%
-
-UAR 即 Macro-Recall。
-
-由於 M3ED 類別分布高度不平衡，本專案主要使用 **Macro-F1 與 UAR** 評估跨類別表現，而非僅依賴 Accuracy。
-
-Balanced Fusion 改善了多數少數類別的 recall，但仍不能視為已完全解決 class imbalance。
-
-例如 Fear 在 test set 中僅有 65 筆，其中目前只正確辨識 5 筆。
-
-目前結果為 single-seed experiment，未進行統計顯著性檢定。
-
-完整研究整理可參考：
-
-- [論文章節整理：Method / Experiment / Results / Discussion](docs/PAPER.md)
-- [實驗紀錄](EXPERIMENTS.md)
-- [重現性檢查](docs/REPRODUCIBILITY.md)
-
-完整 metrics、predictions、confusion matrices 與分析輸出不提交至 GitHub，可透過本 repository 的分析腳本重新產生至本機 `results/`。
-
----
-
-# Dataset
-
-本專案使用：
-
-**M3ED — Multi-modal Multi-scene Multi-label Emotional Dialogue Dataset**
-
-使用的主要資訊：
-
-- transcript
-- speech waveform
-- `final_main_emo`
-- 官方 movie-level train / validation / test split
-
-沒有使用：
-
-- video
-- face
-- speaker embedding
-- dialogue context
-
----
-
-## 資料數量
-
-原始 annotation：
+The task is:
 
 ```text
-24,449 utterances
+Input:
+    text
+    speech
+        ↓
+Output:
+    one of seven emotion classes
 ```
 
-其中有 12 個 WAV 檔案為可讀但沒有實際音訊內容的空檔，因此排除：
-
-```text
-Train       7
-Validation  2
-Test        3
-```
-
-最終可同時使用文字與語音的 paired dataset：
-
-```text
-24,437 utterances
-```
-
-分布如下：
-
-| Emotion | Train | Validation | Test |
-| --- | ---: | ---: | ---: |
-| Anger | 3,814 | 681 | 736 |
-| Disgust | 1,145 | 134 | 218 |
-| Fear | 280 | 50 | 65 |
-| Happy | 1,625 | 303 | 358 |
-| Neutral | 7,126 | 1,042 | 1,853 |
-| Sad | 2,734 | 489 | 734 |
-| Surprise | 696 | 120 | 234 |
-| **Total** | **17,420** | **2,819** | **4,198** |
-
----
-
-## Label Order
-
-本專案固定使用：
+The seven classes are fixed in this order:
 
 ```python
 [
@@ -260,39 +207,118 @@ Test        3
 ]
 ```
 
-此順序不同於原資料 README 中的 numeric label mapping。
-
-本專案是從 emotion label name 重新編碼，因此所有：
-
-```text
-prob_*
-```
-
-欄位皆遵循本 repository 的七類順序。
+All probability vectors in this project use the same order.
 
 ---
 
-# Data Preparation
+# Dataset
 
-M3ED 資料本身不包含於本 repository。
+The project uses the **M3ED** Chinese multimodal emotion dataset.
 
-取得 M3ED annotations、官方 split 與語音資料後，本機目錄結構應類似：
+The project uses:
+
+- transcript
+- speech waveform
+- `final_main_emo`
+- official movie-level train / validation / test split
+
+The project does not currently use:
+
+- video
+- facial features
+- dialogue context
+- speaker embeddings
+
+---
+
+## Dataset Preparation
+
+The original metadata contains:
 
 ```text
-data/raw/
-├── M3ED_metadata/
-│   ├── annotation.json
-│   └── splitInfo/
-│       ├── movie_list_train.txt
-│       ├── movie_list_val.txt
-│       └── movie_list_test.txt
-│
-└── M3ED_audio/
-    └── modality_speech/
-        └── {speaker}_{utterance_id}.wav
+24,449 utterances
 ```
 
-所有有效音檔為：
+During speech validation, 12 WAV files were found to be readable files with zero effective duration.
+
+Excluded samples:
+
+```text
+Train:       7
+Validation:  2
+Test:        3
+```
+
+Final paired text + speech dataset:
+
+```text
+24,437 utterances
+```
+
+Split sizes:
+
+```text
+Train:       17,420
+Validation:   2,819
+Test:         4,198
+```
+
+---
+
+## Class Distribution
+
+| Emotion | Train | Validation | Test |
+| --- | ---: | ---: | ---: |
+| Anger | 3,814 | 681 | 736 |
+| Disgust | 1,145 | 134 | 218 |
+| Fear | 280 | 50 | 65 |
+| Happy | 1,625 | 303 | 358 |
+| Neutral | 7,126 | 1,042 | 1,853 |
+| Sad | 2,734 | 489 | 734 |
+| Surprise | 696 | 120 | 234 |
+| **Total** | **17,420** | **2,819** | **4,198** |
+
+The dataset is strongly imbalanced, particularly for:
+
+```text
+Fear
+Disgust
+Surprise
+```
+
+Therefore, this project reports class-balanced metrics such as:
+
+```text
+Macro-F1
+UAR / Macro-Recall
+```
+
+in addition to Accuracy.
+
+---
+
+# Local Dataset Structure
+
+M3ED itself is not distributed through this repository.
+
+Expected local structure:
+
+```text
+data/
+└── raw/
+    ├── M3ED_metadata/
+    │   ├── annotation.json
+    │   └── splitInfo/
+    │       ├── movie_list_train.txt
+    │       ├── movie_list_val.txt
+    │       └── movie_list_test.txt
+    │
+    └── M3ED_audio/
+        └── modality_speech/
+            └── {speaker}_{utterance_id}.wav
+```
+
+Valid audio files are:
 
 ```text
 16 kHz
@@ -300,39 +326,39 @@ mono
 WAV
 ```
 
-本專案沒有自動執行：
+The current preprocessing pipeline does not automatically apply:
 
-- resampling
 - denoising
 - speech enhancement
 - data augmentation
-- automatic speech recognition
+- ASR
+- automatic resampling of the original dataset
 
-文字輸入直接使用 M3ED annotation 中的 transcript。
+Text input uses the annotated transcript directly.
 
 ---
 
 # Models
 
-## MacBERT — Text Model
+# 1. MacBERT Text Model
 
-Pretrained model：
+Pretrained model:
 
 ```text
 hfl/chinese-macbert-base
 ```
 
-用途：
+Task:
 
 ```text
-Chinese text emotion classification
+Chinese utterance-level emotion classification
 ```
 
-主要設定：
+Main training settings:
 
 | Setting | Value |
 | --- | --- |
-| Maximum length | 32 tokens |
+| Max sequence length | 32 tokens |
 | Padding | Dynamic |
 | Learning rate | 2e-5 |
 | Train batch size | 16 |
@@ -343,23 +369,25 @@ Chinese text emotion classification
 | Checkpoint criterion | Validation Macro-F1 |
 | Early stopping patience | 2 epochs |
 
+The baseline does not use class weighting.
+
 ---
 
-## WavLM — Speech Model
+# 2. WavLM Speech Model
 
-Pretrained model：
+Pretrained model:
 
 ```text
 microsoft/wavlm-base-plus
 ```
 
-輸入：
+Input:
 
 ```text
 16 kHz raw waveform
 ```
 
-主要設定：
+Main training settings:
 
 | Setting | Value |
 | --- | --- |
@@ -372,34 +400,47 @@ microsoft/wavlm-base-plus
 | Checkpoint criterion | Validation Macro-F1 |
 | Early stopping patience | 2 epochs |
 
-MacBERT 與 WavLM baseline 均未使用 class weights。
+The WavLM baseline also does not use class weighting.
 
 ---
 
 # Fusion Methods
 
-本專案比較三種 probability-level late fusion。
+Three probability-level late-fusion approaches were evaluated.
+
+---
 
 ## 1. Weighted Fusion
 
-使用：
+The probability vectors are combined using:
 
 ```text
-P = α × P_text + (1 - α) × P_speech
+P_fusion =
+α × P_text
++
+(1 - α) × P_speech
 ```
 
-在 validation set 搜尋：
+The text weight was searched on the validation set using:
 
 ```text
-α = 0.00, 0.05, 0.10, ..., 1.00
+0.00
+0.05
+0.10
+...
+1.00
 ```
 
-選擇 validation Macro-F1 最高的 α。
-
-最終：
+The selection criterion was:
 
 ```text
-α_text = 0.75
+Validation Macro-F1
+```
+
+Best validation setting:
+
+```text
+α_text   = 0.75
 α_speech = 0.25
 ```
 
@@ -407,109 +448,212 @@ P = α × P_text + (1 - α) × P_speech
 
 ## 2. Learned Fusion
 
-將兩個模型的 probability vectors 串接：
+The full probability vectors from both models are concatenated.
 
 ```text
-MacBERT: 7
-WavLM:   7
-----------------
-Total:  14 features
+MacBERT probabilities = 7
+WavLM probabilities   = 7
+
+Total features        = 14
 ```
 
-使用 Logistic Regression 學習融合規則。
+A Logistic Regression classifier is then trained using these 14 features.
 
-Fusion model 使用 validation predictions 進行 fitting。
+The fusion model is fitted using validation predictions.
 
 ---
 
 ## 3. Balanced Learned Fusion
 
-架構與 Learned Fusion 相同，但 Logistic Regression 使用：
+Balanced Learned Fusion uses the same 14-dimensional feature representation but trains Logistic Regression with:
 
 ```python
 class_weight="balanced"
 ```
 
-其權重概念為：
+Conceptually, the class weight is:
 
 ```text
 w_c = N / (K × n_c)
 ```
 
-其中：
+where:
 
 ```text
-N   = validation samples
-K   = number of classes
-n_c = samples of class c
+N   = number of validation samples
+K   = number of emotion classes
+n_c = number of validation samples in class c
 ```
 
-Balanced Fusion 不重新抽樣資料，也不使用 test class frequencies。
+This approach:
 
-目前 FastAPI deployment 使用的即為此模型。
+- does not oversample
+- does not undersample
+- does not use test-set class frequencies
+
+This is the fusion model currently used by the deployed application.
+
+---
+
+# Experiment Results
+
+All methods below were evaluated on the same:
+
+```text
+4,198 test utterances
+```
+
+Seed:
+
+```text
+42
+```
+
+| Method | Accuracy | Macro-F1 | Macro-Precision | UAR |
+| --- | ---: | ---: | ---: | ---: |
+| MacBERT (Text) | 45.07 | 30.43 | 33.50 | 29.13 |
+| WavLM (Speech) | 50.12 | 19.01 | 21.00 | 21.66 |
+| Weighted Fusion (`α_text = 0.75`) | 47.40 | 30.91 | **35.86** | 29.33 |
+| Learned Fusion | **53.26** | 30.38 | 35.43 | 29.91 |
+| Balanced Learned Fusion | 41.40 | **34.14** | 35.19 | **36.28** |
+
+---
+
+## Main Observations
+
+### Highest Accuracy
+
+```text
+Learned Fusion
+Accuracy = 53.26%
+```
+
+### Highest Macro-F1
+
+```text
+Balanced Learned Fusion
+Macro-F1 = 34.14%
+```
+
+### Highest UAR
+
+```text
+Balanced Learned Fusion
+UAR = 36.28%
+```
+
+Balanced fusion sacrifices overall Accuracy but improves class-balanced performance.
+
+This is relevant because M3ED is strongly imbalanced.
+
+---
+
+## Minority-Class Limitation
+
+The improvement from balanced fusion does not mean that minority-class recognition is solved.
+
+For example:
+
+```text
+Fear test support = 65
+Correct Fear predictions = 5
+```
+
+Therefore, minority-class performance remains a major limitation of the current system.
+
+---
+
+# Metric Interpretation
+
+The project reports:
+
+```text
+Accuracy
+Macro-Precision
+Macro-F1
+UAR
+```
+
+UAR is equivalent to:
+
+```text
+Macro-Recall
+```
+
+Because the class distribution is imbalanced, the main class-balanced metrics used for interpretation are:
+
+```text
+Macro-F1
+UAR
+```
+
+rather than Accuracy alone.
 
 ---
 
 # Training Pipeline
 
-完整 pipeline：
+The main training pipeline follows these steps:
 
-| Step | Script | Function |
+| Step | Script | Purpose |
 | --- | --- | --- |
-| 1 | `src/utils/build_manifest.py` | 建立 manifest |
-| 2 | `src/utils/validate_manifest.py` | 檢查資料與 split |
-| 3 | `src/utils/link_audio_manifest.py` | 對應 speech files |
-| 4 | `src/utils/validate_audio.py` | 驗證 audio metadata |
-| 5 | `src/utils/mark_audio_valid.py` | 排除無效音檔 |
-| 6 | `src/text/train_text.py` | MacBERT |
-| 7 | `src/speech/train_speech.py` | WavLM |
-| 8 | `src/fusion/generate_val_predictions.py` | 建立 validation probabilities |
-| 9 | `src/fusion/search_weighted_fusion.py` | 搜尋 Weighted Fusion α |
-| 10 | `src/fusion/evaluate_weighted_fusion.py` | Weighted Fusion test |
-| 11 | `src/fusion/train_learned_fusion.py` | Learned Fusion |
-| 12 | `src/fusion/train_learned_fusion_balanced.py` | Balanced Fusion |
-| 13 | `src/analysis/summarize_results.py` | 統整實驗結果 |
+| 1 | `src/utils/build_manifest.py` | Build dataset manifest |
+| 2 | `src/utils/validate_manifest.py` | Validate labels and split |
+| 3 | `src/utils/link_audio_manifest.py` | Match audio files |
+| 4 | `src/utils/validate_audio.py` | Validate audio metadata |
+| 5 | `src/utils/mark_audio_valid.py` | Exclude invalid audio |
+| 6 | `src/text/train_text.py` | Train MacBERT |
+| 7 | `src/speech/train_speech.py` | Train WavLM |
+| 8 | `src/fusion/generate_val_predictions.py` | Generate validation probabilities |
+| 9 | `src/fusion/search_weighted_fusion.py` | Search weighted-fusion α |
+| 10 | `src/fusion/evaluate_weighted_fusion.py` | Evaluate weighted fusion |
+| 11 | `src/fusion/train_learned_fusion.py` | Train Logistic Regression fusion |
+| 12 | `src/fusion/train_learned_fusion_balanced.py` | Train balanced Logistic Regression |
+| 13 | `src/analysis/summarize_results.py` | Generate result summaries |
 
-`generate_train_predictions.py` 為額外診斷工具。
-
-目前正式 Fusion 實驗：
+An additional:
 
 ```text
-不使用 train_predictions.csv 來 fit fusion model
+generate_train_predictions.py
 ```
 
-避免直接使用 base model 對自身 training set 的 in-sample predictions 作為正式融合結果。
+script is available for diagnostic purposes.
+
+The formal fusion experiments do **not** directly fit on `train_predictions.csv`.
 
 ---
 
-# 完整重新訓練
+# Full Reproduction
 
-所有 command 從 repository root 執行。
+All commands should be executed from the repository root.
 
-完整 pipeline：
+To run the complete training pipeline:
 
 ```bash
 python scripts/run_pipeline.py \
   --output-dir runs/my-reproduction
 ```
 
-`--output-dir` 必須為尚未存在的目錄。
+The target output directory must not already exist.
 
-每個 run 會：
+Each run stores:
 
-- 複製設定
-- 保留 logs
-- 重新處理資料
-- 訓練 MacBERT
-- 訓練 WavLM
-- 執行 Fusion
-- 統整結果
+```text
+logs
+configs
+models
+predictions
+metrics
+analysis output
+```
 
-模型與輸出不會直接覆蓋原始實驗。
+inside the isolated run directory.
 
 ---
 
-## 只檢查資料處理
+## Data-only Check
+
+To stop after preprocessing:
 
 ```bash
 python scripts/run_pipeline.py \
@@ -521,14 +665,14 @@ python scripts/run_pipeline.py \
 
 # Reproducibility Check
 
-驗證資料與已儲存 probabilities：
+To validate preprocessing and saved probability outputs:
 
 ```bash
 python scripts/check_reproducibility.py \
   --output results/audit-new
 ```
 
-加入 checkpoint inference：
+To additionally replay model inference:
 
 ```bash
 python scripts/check_reproducibility.py \
@@ -536,31 +680,50 @@ python scripts/check_reproducibility.py \
   --output results/audit-models-new
 ```
 
-Audit 會在新的輸出目錄執行，不覆寫原始模型或結果。
+The audit checks include:
 
-檢查項目包括：
-
+- ID uniqueness
+- split coverage
 - label consistency
 - probability validity
-- split coverage
-- prediction consistency
-- checkpoint replay
+- argmax consistency
+- saved prediction replay
+- checkpoint inference replay
 
-完整說明：
+Additional notes are available in:
 
-[docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md)
+```text
+docs/REPRODUCIBILITY.md
+```
 
 ---
 
 # FastAPI Inference Service
 
-Backend entry point：
+Backend entry point:
 
 ```text
 src/api/app.py
 ```
 
-啟動時會從 Hugging Face model repository 載入：
+The backend provides:
+
+```text
+GET  /health
+POST /predict-fusion
+```
+
+---
+
+# Model Loading
+
+The backend downloads deployment models from the private Hugging Face repository using:
+
+```python
+snapshot_download(...)
+```
+
+Model paths:
 
 ```text
 text_model/
@@ -568,45 +731,49 @@ speech_model/
 fusion_model.joblib
 ```
 
----
+The repository ID is:
 
-## Hugging Face Authentication
-
-目前 model repository 為 private。
-
-部署環境需提供具有 read permission 的 Hugging Face token：
-
-```bash
-export HF_TOKEN=hf_xxxxxxxxx
+```text
+ninni13/moodjournal-multimodal-emotion
 ```
-
-Token 不應：
-
-- 寫入 Python source code
-- commit 到 GitHub
-- 寫進 README
-- 公開分享
-
-本機若已執行：
-
-```bash
-hf auth login
-```
-
-Hugging Face Hub library 亦可使用本機保存的登入資訊。
 
 ---
 
-# 啟動 Backend
+# Hugging Face Authentication
 
-進入環境：
+The application expects:
+
+```text
+HF_TOKEN
+```
+
+to be available as an environment variable.
+
+The Python backend reads:
+
+```python
+HF_TOKEN = os.getenv("HF_TOKEN")
+```
+
+The token must not be:
+
+- committed to GitHub
+- hardcoded into Python files
+- included in README
+- exposed in frontend code
+
+---
+
+# Local Backend Execution
+
+Activate the environment:
 
 ```bash
 conda activate moodjournal2
 cd ~/MoodJournal-v2
 ```
 
-啟動：
+Start FastAPI:
 
 ```bash
 uvicorn src.api.app:app \
@@ -632,11 +799,19 @@ curl -X POST \
   http://127.0.0.1:8000/predict-fusion
 ```
 
-Text-only mode 使用 MacBERT probability output。
+In text-only mode:
+
+```text
+MacBERT prediction
+→ returned as text prediction
+→ fusion output follows the text-only probabilities
+```
+
+No speech model is executed when no audio file is provided.
 
 ---
 
-## Text + Speech Inference
+## Multimodal Inference
 
 ```bash
 curl -X POST \
@@ -645,9 +820,13 @@ curl -X POST \
   http://127.0.0.1:8000/predict-fusion
 ```
 
-Backend 會：
+Processing flow:
 
 ```text
+text
+  ↓
+MacBERT
+
 audio
   ↓
 FFmpeg
@@ -655,23 +834,21 @@ FFmpeg
 16 kHz mono WAV
   ↓
 WavLM
-```
 
-再將：
-
-```text
 MacBERT probabilities
 +
 WavLM probabilities
+  ↓
+Balanced Logistic Regression
+  ↓
+Final seven-class emotion prediction
 ```
-
-送入 Balanced Learned Fusion。
 
 ---
 
 # API Response
 
-範例：
+Example response structure:
 
 ```json
 {
@@ -685,93 +862,359 @@ WavLM probabilities
     "Sad",
     "Surprise"
   ],
-  "text_pred": {},
-  "audio_pred": {},
-  "fusion_pred": {},
+  "text_pred": {
+    "Anger": 0.01,
+    "Disgust": 0.01,
+    "Fear": 0.01,
+    "Happy": 0.45,
+    "Neutral": 0.49,
+    "Sad": 0.02,
+    "Surprise": 0.01
+  },
+  "audio_pred": {
+    "Anger": 0.03,
+    "Disgust": 0.06,
+    "Fear": 0.02,
+    "Happy": 0.08,
+    "Neutral": 0.49,
+    "Sad": 0.28,
+    "Surprise": 0.04
+  },
+  "fusion_pred": {
+    "Anger": 0.03,
+    "Disgust": 0.10,
+    "Fear": 0.12,
+    "Happy": 0.39,
+    "Neutral": 0.15,
+    "Sad": 0.13,
+    "Surprise": 0.08
+  },
   "text_top1": "Neutral",
   "audio_top1": "Neutral",
-  "fusion_top1": "Sad",
-  "confidence": 0.24
+  "fusion_top1": "Happy",
+  "confidence": 0.39
 }
 ```
 
-其中：
+The final fusion class does not have to match either base model's top-1 class.
 
-```text
-text_pred
-```
-
-為 MacBERT 七類 probabilities。
-
-```text
-audio_pred
-```
-
-為 WavLM 七類 probabilities。
-
-```text
-fusion_pred
-```
-
-為最終 fusion 七類 probabilities。
+The Logistic Regression fusion classifier uses all 14 probabilities rather than performing simple majority voting.
 
 ---
 
-# Frontend Connection
+# Audio Processing
 
-Frontend repository：
-
-[https://github.com/ninni13/MoodJournal](https://github.com/ninni13/MoodJournal)
-
-Frontend 透過：
+Browser recordings may arrive in formats such as:
 
 ```text
-VITE_GATEWAY_BASE
+WebM
 ```
 
-指定 FastAPI endpoint。
+Before WavLM inference, FastAPI uses FFmpeg to convert the recording into:
 
-Local development example：
+```text
+16 kHz
+mono
+WAV
+```
+
+Temporary audio files are removed after inference.
+
+---
+
+# Frontend Integration
+
+Frontend repository:
+
+```text
+https://github.com/ninni13/MoodJournal
+```
+
+Frontend environment variable:
+
+```env
+VITE_GATEWAY_BASE=https://<cloud-run-service-url>
+```
+
+Local development example:
 
 ```env
 VITE_GATEWAY_BASE=http://127.0.0.1:8000
 ```
 
-Frontend 使用：
+Vite environment variables are embedded during build time, so Vercel must be redeployed after changing:
 
 ```text
-POST /predict-fusion
+VITE_GATEWAY_BASE
 ```
 
-傳送：
+---
+
+# Production Deployment
+
+The application is deployed using:
 
 ```text
-text
-optional audio file
+Frontend:
+Vercel
+
+Backend:
+Google Cloud Run
+
+Model storage:
+Hugging Face Hub
+
+Secret storage:
+Google Secret Manager
 ```
 
-並顯示：
+---
 
-- 文字模型 probabilities
-- 語音模型 probabilities
-- Fusion probabilities
-- 最終七類情緒 prediction
+# Production Architecture
+
+```text
+                        Internet
+                           │
+                           ▼
+               https://nis-moodjournal.vercel.app
+                           │
+                           │
+                       Vercel
+                   React + Vite
+                           │
+                           │ HTTPS
+                           ▼
+                  Google Cloud Run
+                     FastAPI API
+                           │
+                ┌──────────┴──────────┐
+                │                     │
+                ▼                     ▼
+             MacBERT                WavLM
+                │                     │
+                └──────────┬──────────┘
+                           │
+                           ▼
+              Balanced Logistic Regression
+                           │
+                           ▼
+                  7-class emotion result
+```
+
+---
+
+# Google Cloud Run Configuration
+
+Current production settings:
+
+```text
+Service:
+moodjournal-backend-v2
+
+Region:
+asia-east1 (Taiwan)
+
+Billing:
+Request-based
+
+Authentication:
+Public access enabled
+
+Ingress:
+All
+
+CPU:
+2 vCPU
+
+Memory:
+4 GiB
+
+Minimum instances:
+0
+
+Maximum instances:
+1
+
+Concurrency:
+1
+
+Request timeout:
+300 seconds
+
+Container port:
+8080
+
+GPU:
+Disabled
+```
+
+The service is intentionally configured with:
+
+```text
+Minimum instances = 0
+```
+
+so it can scale to zero when unused.
+
+Maximum instances are limited to:
+
+```text
+1
+```
+
+to reduce unexpected costs during the portfolio/demo stage.
+
+---
+
+# Docker Deployment
+
+Cloud Run builds the backend using:
+
+```text
+Dockerfile
+```
+
+The production Docker image uses CPU PyTorch rather than the local CUDA training environment.
+
+Container start command:
+
+```bash
+uvicorn src.api.app:app \
+  --host 0.0.0.0 \
+  --port ${PORT:-8080}
+```
+
+Cloud Run provides the `PORT` environment variable automatically.
+
+---
+
+# Cloud Build
+
+The Cloud Run service is connected to:
+
+```text
+GitHub
+ninni13/MoodJournal-backend-v2
+```
+
+Production branch:
+
+```text
+main
+```
+
+Cloud Build automatically builds the Docker image used by Cloud Run.
+
+This means future backend changes can follow:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+and the configured deployment pipeline can rebuild the service.
+
+---
+
+# Google Secret Manager
+
+The Hugging Face deployment token is not stored directly inside the repository.
+
+Secret name:
+
+```text
+moodjournal-hf-token
+```
+
+It is exposed to the Cloud Run container as:
+
+```text
+HF_TOKEN
+```
+
+The Cloud Run runtime service account is granted:
+
+```text
+Secret Manager Secret Accessor
+```
+
+for this secret.
+
+The actual token value is never committed to GitHub.
+
+---
+
+# Vercel Production Configuration
+
+Production frontend:
+
+```text
+https://nis-moodjournal.vercel.app
+```
+
+The Vercel project contains:
+
+```text
+VITE_GATEWAY_BASE
+```
+
+which points to the Cloud Run backend.
+
+After changing this value, the Vercel frontend must be redeployed.
+
+---
+
+# Production Verification
+
+The deployed application has been verified using both:
+
+```text
+Text-only inference
+```
+
+and:
+
+```text
+Text + Speech multimodal inference
+```
+
+The production pipeline successfully performs:
+
+```text
+Browser recording
+→ Vercel frontend
+→ Cloud Run FastAPI
+→ FFmpeg
+→ MacBERT + WavLM
+→ Balanced Fusion
+→ Seven-class result
+```
 
 ---
 
 # Environment
 
-原實驗環境：
+Original experiment environment:
 
 ```text
+OS:
 Linux
-Python 3.10.21
+
+Python:
+3.10.21
+
+GPU:
 NVIDIA RTX 4090 24 GB
-NVIDIA Driver 570.211.01
-CUDA 12.8
+
+NVIDIA Driver:
+570.211.01
+
+CUDA:
+12.8
 ```
 
-主要套件：
+Main package versions:
 
 | Package | Version |
 | --- | --- |
@@ -780,26 +1223,73 @@ CUDA 12.8
 | Transformers | 5.17.0 |
 | Accelerate | 1.15.0 |
 | Datasets | 5.0.1 |
+| Evaluate | 0.4.6 |
+| librosa | 0.11.0 |
+| soundfile | 0.14.0 |
 | NumPy | 2.2.6 |
 | pandas | 2.3.3 |
 | scikit-learn | 1.7.2 |
 | matplotlib | 3.10.9 |
-| soundfile | 0.14.0 |
 
-`requirements.txt` 保留原環境的完整 package snapshot。
+`requirements.txt` represents the original training environment snapshot.
 
-其中包含 Linux / CUDA-specific dependencies，因此不是保證可跨平台直接安裝的通用 requirements。
+It contains Linux / CUDA-specific dependencies and is therefore not intended to be a universal cross-platform requirements file.
 
 ---
 
-# 建立 Conda Environment
+# Deployment Dependencies
+
+Cloud Run uses the smaller deployment dependency file:
+
+```text
+requirements-deploy.txt
+```
+
+This avoids unnecessarily installing the full local training environment inside the production container.
+
+Deployment dependencies include:
+
+```text
+fastapi
+uvicorn
+python-multipart
+huggingface-hub
+transformers
+torch CPU
+numpy
+scikit-learn
+joblib
+librosa
+soundfile
+```
+
+System packages include:
+
+```text
+ffmpeg
+libsndfile1
+```
+
+---
+
+# Conda Environment
+
+To create a reproduction environment:
 
 ```bash
-conda create -n moodjournal2-repro python=3.10.21 -y
+conda create \
+  -n moodjournal2-repro \
+  python=3.10.21 \
+  -y
+```
+
+Activate:
+
+```bash
 conda activate moodjournal2-repro
 ```
 
-接著：
+Install:
 
 ```bash
 python -m pip install \
@@ -807,63 +1297,88 @@ python -m pip install \
   -r requirements.txt
 ```
 
-確認：
+Check environment:
 
 ```bash
 python -m pip check
 ```
 
-GPU：
+Check CUDA:
 
 ```bash
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+python -c \
+'import torch; print(torch.__version__, torch.cuda.is_available())'
 ```
 
-原實驗環境若仍存在：
+The original environment can be activated with:
 
 ```bash
 conda activate moodjournal2
 ```
 
-即可直接使用。
+---
+
+# Experiment Configuration
+
+Saved training settings include:
+
+```text
+Optimizer:
+AdamW
+
+Scheduler:
+Linear learning-rate scheduler
+
+Warmup:
+0 steps
+
+Gradient accumulation:
+1
+
+Gradient clipping:
+1.0
+
+Seed:
+42
+```
+
+BF16 was used when supported by the training environment.
 
 ---
 
-# Experiment Notes
+# Experimental Design Notes
 
-原保存參數包含：
-
-```text
-AdamW
-linear learning-rate scheduler
-warmup_steps = 0
-gradient_accumulation_steps = 1
-gradient clipping = 1.0
-```
-
-原實驗在支援時使用 BF16。
-
-Validation set 同時被用於：
+The validation set is used for multiple development decisions:
 
 - MacBERT checkpoint selection
 - WavLM checkpoint selection
-- Weighted Fusion α selection
-- Logistic Regression fitting
+- weighted-fusion α selection
+- Logistic Regression fusion fitting
 
-因此 validation fitting score 不應視為獨立泛化結果。
+Therefore, validation performance must not be interpreted as an independent estimate of final generalization performance.
 
-Test labels 未直接進入目前 training script 或 α search。
+The final reported metrics use the test split.
 
-然而，由於本專案是在持續開發過程中比較多種模型設計，因此歷史上的人工設計決策可能已參考過 test 結果。若用於正式論文中的嚴格模型選擇，應進一步考慮獨立 final test set、cross-validation 或 out-of-fold stacking。
+However, this project was developed iteratively and multiple model variants were compared over time.
 
-目前結果亦僅為 single-seed experiment。
+Therefore, historical development decisions may have been influenced by previously observed test performance.
+
+For stricter future research evaluation, possible improvements include:
+
+- a fully held-out final test set
+- cross-validation
+- out-of-fold stacking
+- repeated seeds
+- statistical significance testing
+
+The current reported results are from a single seed.
 
 ---
 
 # Project Structure
 
 ```text
-MoodJournal-v2/
+MoodJournal-backend-v2/
 │
 ├── configs/
 │   ├── text_macbert.json
@@ -879,7 +1394,9 @@ MoodJournal-v2/
 │
 ├── src/
 │   ├── api/
-│   │   └── app.py
+│   │   ├── app.py
+│   │   ├── app_hf.py
+│   │   └── app_local_backup.py
 │   │
 │   ├── analysis/
 │   │
@@ -893,13 +1410,22 @@ MoodJournal-v2/
 │
 ├── tests/
 │
+├── Dockerfile
+├── requirements.txt
+├── requirements-deploy.txt
 ├── EXPERIMENTS.md
 ├── README.md
-├── requirements.txt
+├── .dockerignore
 └── .gitignore
 ```
 
-以下資料存在於本機，但不提交 GitHub：
+Some API backup files may exist locally depending on development history.
+
+---
+
+# Local-only Files
+
+The following directories are intentionally excluded from GitHub:
 
 ```text
 data/
@@ -909,21 +1435,32 @@ hf_upload/
 runs/
 ```
 
-用途：
+Purpose:
 
 ```text
-data/        M3ED 原始與處理後資料
-models/      training checkpoints
-results/     predictions、metrics、fusion models、figures
-hf_upload/   Hugging Face upload staging files
-runs/        reproduction experiment outputs
+data/
+    Original and processed M3ED data
+
+models/
+    Local training checkpoints
+
+results/
+    Predictions, metrics, fusion models and figures
+
+hf_upload/
+    Temporary Hugging Face upload staging directory
+
+runs/
+    Reproduction experiment output
 ```
 
 ---
 
-# Git / Data Policy
+# Git Ignore Policy
 
-為避免 repository 過大，以及避免重新散布 M3ED 原始資料，本專案 GitHub 不包含：
+Sensitive or large files are excluded from source control.
+
+Examples:
 
 ```text
 data/
@@ -931,60 +1468,129 @@ models/
 results/
 hf_upload/
 runs/
+
 .env
 .env.local
+
+__pycache__/
+*.pyc
+
+checkpoints/
 ```
 
-部署用模型由 Hugging Face Hub 管理。
-
-原始 M3ED dataset 需依資料集提供者的取得方式與授權條件自行下載。
-
----
-
-# Current Status
-
-目前已完成：
-
-- [x] M3ED metadata parsing
-- [x] Official movie-level train / validation / test split
-- [x] Audio validation
-- [x] MacBERT text baseline
-- [x] WavLM speech baseline
-- [x] Weighted Fusion
-- [x] Learned Fusion
-- [x] Balanced Learned Fusion
-- [x] Evaluation and confusion matrices
-- [x] Reproducibility pipeline
-- [x] FastAPI inference backend
-- [x] Hugging Face model storage
-- [x] React frontend integration
-- [x] Firebase user system
-- [x] Browser audio recording
-- [x] Text + speech multimodal inference
-- [x] Seven-class emotion visualization
-
----
-
-# Final Model Used by the Application
-
-目前 MoodJournal application 的 multimodal inference 使用：
+The repository may include:
 
 ```text
-Text:
-hfl/chinese-macbert-base
-        ↓
-fine-tuned MacBERT
-
-Speech:
-microsoft/wavlm-base-plus
-        ↓
-fine-tuned WavLM
-
-Fusion:
-Balanced Logistic Regression
+.env.example
 ```
 
-最終輸出：
+but must never contain real secrets.
+
+---
+
+# Data Policy
+
+The original M3ED dataset is not committed to this repository.
+
+Users must obtain M3ED through the dataset provider and follow the corresponding licensing and usage conditions.
+
+This repository contains only code required to process the locally obtained dataset.
+
+---
+
+# Security Notes
+
+Never commit:
+
+```text
+Hugging Face access tokens
+Firebase private secrets
+Google Cloud credentials
+.env files containing credentials
+```
+
+Production secrets should be managed through:
+
+```text
+Google Secret Manager
+Vercel Environment Variables
+```
+
+rather than source code.
+
+---
+
+# Current Project Status
+
+Completed:
+
+- [x] M3ED metadata parsing
+- [x] Official movie-level split
+- [x] Audio validation
+- [x] Paired multimodal manifest
+- [x] MacBERT text baseline
+- [x] WavLM speech baseline
+- [x] Weighted late fusion
+- [x] Learned Logistic Regression fusion
+- [x] Balanced Logistic Regression fusion
+- [x] Macro-F1 / UAR evaluation
+- [x] Confusion matrices
+- [x] Reproducibility utilities
+- [x] FastAPI inference API
+- [x] Browser audio support
+- [x] FFmpeg audio conversion
+- [x] React frontend integration
+- [x] Firebase authentication
+- [x] Seven-class emotion display
+- [x] Seven-class emotion visualization
+- [x] Hugging Face model repository
+- [x] GitHub backend repository
+- [x] Docker deployment
+- [x] Google Secret Manager integration
+- [x] Google Cloud Run deployment
+- [x] Vercel frontend deployment
+- [x] Production text-only verification
+- [x] Production multimodal verification
+
+---
+
+# Final Application Model
+
+The deployed application currently uses:
+
+```text
+Text branch
+    ↓
+hfl/chinese-macbert-base
+    ↓
+Fine-tuned MacBERT
+    ↓
+7 probabilities
+```
+
+and:
+
+```text
+Speech branch
+    ↓
+microsoft/wavlm-base-plus
+    ↓
+Fine-tuned WavLM
+    ↓
+7 probabilities
+```
+
+followed by:
+
+```text
+14 probabilities
+    ↓
+Balanced Logistic Regression
+    ↓
+Final emotion
+```
+
+Output classes:
 
 ```text
 Anger
@@ -996,6 +1602,92 @@ Sad
 Surprise
 ```
 
-本專案的主要研究觀察為：
+---
 
-> 在高度不平衡的七類 M3ED emotion classification 中，單純提高整體 Accuracy 不一定能改善少數類別辨識；加入 balanced fusion 後，雖然整體 Accuracy 降低，但 Macro-F1 與 UAR 均有所提升。
+# Main Project Finding
+
+The current experiments illustrate that:
+
+> Higher overall Accuracy does not necessarily correspond to better performance across all emotion classes in an imbalanced emotion-recognition task.
+
+The ordinary learned fusion model achieved the highest overall Accuracy, while Balanced Learned Fusion reduced Accuracy but improved:
+
+```text
+Macro-F1
+UAR
+```
+
+indicating better class-balanced performance.
+
+At the same time, performance on very small classes such as Fear remains limited and should not be considered solved.
+
+---
+
+# Production Stack
+
+```text
+Frontend
+React
+Vite
+Firebase
+Vercel
+
+Backend
+Python
+FastAPI
+Uvicorn
+FFmpeg
+Google Cloud Run
+
+Machine Learning
+PyTorch
+Transformers
+MacBERT
+WavLM
+scikit-learn Logistic Regression
+
+Model Storage
+Hugging Face Hub
+
+Secret Management
+Google Secret Manager
+
+Version Control
+GitHub
+```
+
+---
+
+# Final Deployment Flow
+
+```text
+User
+ │
+ ▼
+https://nis-moodjournal.vercel.app
+ │
+ ▼
+React + Vite
+ │
+ │ text / microphone recording
+ ▼
+Google Cloud Run
+ │
+ ▼
+FastAPI
+ │
+ ├── MacBERT
+ │
+ └── WavLM
+       │
+       ▼
+Balanced Fusion
+       │
+       ▼
+7-class emotion output
+       │
+       ▼
+Diary + emotion visualization
+```
+
+The complete MoodJournal multimodal emotion-recognition application is currently deployed and operational.
